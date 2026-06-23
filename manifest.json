@@ -1,6 +1,6 @@
 {
-  "name": "SDO Biñan City Calendar of Activities",
-  "short_name": "Calendar of Activities",
+  "name": "SDO Biñan City Document tracker",
+  "short_name": "Document Tracker",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#003366",
