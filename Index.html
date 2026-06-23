@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDO Biñan City Document Tracker</title>
+
+    <link rel="manifest" href="manifest.json">
+
+    <link rel="icon" href="calendar.png" type="image/jpg">
+    <link rel="apple-touch-icon" href="calendar.png">
+
+    <style>
+      body, html { 
+        margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; 
+        background: #003366; 
+      }
+      
+      #splash-screen {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        /* Replaced solid color with your background image */
+        background: url('SdoBuilding.png'); 
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        color: white;
+        display: flex; flex-direction: column; 
+        align-items: center; justify-content: center;
+        z-index: 9999;
+        cursor: pointer;
+        transition: opacity 0.5s ease;
+        font-family: sans-serif;
+      }
+
+      /* Optional: Dark overlay to make the white text easier to read over the image */
+      #splash-screen::before {
+        content: "";
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 51, 102, 0.65); /* Dark blue tint with 65% opacity */
+        z-index: -1;
+      }
+
+      iframe { 
+        width: 100%; height: 100%; border: none; 
+      }
+    </style>
+  </head>
+  <body>
+
+   <div id="splash-screen" onclick="launchApp()">
+  <div style="text-align: center; display: flex; flex-direction: column; align-items: center; gap: 15px;">
+    <h1>SDO Biñan City</h1>
+    <p>Document Tracker</p>
+    
+    <p style="font-weight: bold; border: 1px solid white; padding: 10px; background: rgba(0, 0, 0, 0.4); cursor: pointer;">
+      CLICK TO ENTER
+    </p>
+
+    <button id="installBtn" style="display: none; padding: 10px 20px; background: #38bdf8; border: none; color: white; font-weight: bold; cursor: pointer; border-radius: 5px;">
+      INSTALL APP
+    </button>
+  </div>
+</div>
+
+    <iframe 
+      id="appFrame"
+      src="https://script.google.com/macros/s/AKfycbzlaFr5e7wmz9oNQex1l253CiDUtuoUjm6pPUU5Mz_74FaJSkfOY8-hRbG3KYHCWG2i/exec"
+      allow="geolocation; camera; microphone" 
+      allowfullscreen="true">
+    </iframe>
+
+    <script>
+      let deferredPrompt;
+
+  // 1. Listen for the install prompt
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    // Show the button
+    document.getElementById('installBtn').style.display = 'block';
+  });
+
+  // 2. Handle the click
+  document.getElementById('installBtn').addEventListener('click', (e) => {
+  e.stopPropagation(); // Prevents the splash screen from closing
+  
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choiceResult) => {
+      if (choiceResult.outcome === 'accepted') {
+        document.getElementById('installBtn').style.display = 'none';
+      }
+      deferredPrompt = null;
+    });
+  }
+});
+
+  function launchApp() {
+        const splash = document.getElementById("splash-screen");
+        
+        // Hide Splash
+        splash.style.opacity = '0';
+        setTimeout(() => { splash.style.display = 'none'; }, 500);
+        
+        // Request Fullscreen
+        document.documentElement.requestFullscreen().catch((err) => {
+          console.warn(`Fullscreen skipped: ${err.message}`);
+        });
+      }
+    </script>
+  </body>
+</html>
