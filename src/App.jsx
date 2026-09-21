@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   FileText, Search, Send, CheckCircle2, Clock, AlertCircle, 
   Printer, PenTool, UserCheck, ChevronRight, ShieldCheck, 
-  Building2, ArrowRightLeft, FileCheck, RefreshCw, Eye, Download, LogOut
+  Building2, ArrowRightLeft, FileCheck, RefreshCw, Eye, Download, LogOut, LogIn, Lock, Mail
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -17,6 +17,15 @@ const OFFICES = [
 ];
 
 export default function App() {
+  // Authentication & Session States
+  const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+
+  // Main Application States
   const [currentAccount, setCurrentAccount] = useState(OFFICES[0]);
   const [activeTab, setActiveTab] = useState('track');
   const [searchTrackingNo, setSearchTrackingNo] = useState('');
@@ -42,9 +51,74 @@ export default function App() {
   const [forwardDestination, setForwardDestination] = useState('SDO-CID');
   const [actionRemarks, setActionRemarks] = useState('');
 
+  // 1. Listen for Supabase Authentication State
   useEffect(() => {
-    fetchOfficeDocuments();
-  }, [currentAccount]);
+    supabase?.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) fetchUserProfile(session.user.id);
+      else setAuthLoading(false);
+    });
+
+    const { data: { subscription } } = supabase?.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        fetchUserProfile(session.user.id);
+      } else {
+        setProfile(null);
+        setAuthLoading(false);
+      }
+    }) || { data: { subscription: { unsubscribe: () => {} } } };
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Fetch User Profile and automatically assign office/dashboard unit
+  const fetchUserProfile = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (!error && data) {
+        setProfile(data);
+        const matchingOffice = OFFICES.find(o => o.code === data.office_code);
+        if (matchingOffice) setCurrentAccount(matchingOffice);
+      }
+    } catch (err) {
+      console.error('Error fetching user profile:', err);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (session) {
+      fetchOfficeDocuments();
+    }
+  }, [currentAccount, session]);
+
+  // Auth Functions: Login & Logout
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    setAuthLoading(true);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: loginEmail,
+      password: loginPassword,
+    });
+
+    if (error) {
+      setLoginError(error.message);
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
 
   // Generate Tracking Number SDOB-YYYY-XXXX
   const generateTrackingNumber = () => {
@@ -179,6 +253,84 @@ export default function App() {
     fetchOfficeDocuments();
   };
 
+  // Render Loading Screen while validating auth state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white">
+        <RefreshCw className="w-8 h-8 animate-spin text-yellow-400 mb-3" />
+        <p className="text-sm font-medium text-slate-300">Loading DepEd SDO Biñan DTS Portal...</p>
+      </div>
+    );
+  }
+
+  // RENDER LOGIN SCREEN IF USER IS NOT LOGGED IN
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 space-y-6">
+          <div className="text-center space-y-2">
+            <div className="inline-flex bg-yellow-400 text-blue-900 font-bold px-4 py-2 rounded-xl text-2xl shadow-sm mb-1">
+              SDO Biñan
+            </div>
+            <h1 className="text-xl font-bold text-slate-800">Document Tracking & E-Signature</h1>
+            <p className="text-xs text-slate-500">Sign in with your DepEd Office Credentials</p>
+          </div>
+
+          {loginError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{loginError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Office Email</label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <input 
+                  type="email" 
+                  required
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="office@deped.gov.ph"
+                  className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Password</label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <input 
+                  type="password" 
+                  required
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <button 
+              type="submit" 
+              className="w-full bg-blue-900 hover:bg-blue-800 text-white font-semibold py-2.5 rounded-lg text-sm transition shadow flex items-center justify-center gap-2"
+            >
+              <LogIn className="w-4 h-4" /> Sign In to Dashboard
+            </button>
+          </form>
+
+          <div className="text-center border-t border-slate-100 pt-4">
+            <p className="text-[11px] text-slate-400">Department of Education • Region IV-A CALABARZON</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // RENDER MAIN APPLICATION DASHBOARD WHEN AUTHENTICATED
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
       {/* Top Header */}
@@ -192,19 +344,30 @@ export default function App() {
             </div>
           </div>
 
-          {/* Account Switcher */}
-          <div className="flex items-center gap-2 bg-blue-800/80 px-3 py-1.5 rounded-lg border border-blue-700">
-            <Building2 className="w-4 h-4 text-yellow-400" />
-            <span className="text-xs text-blue-200">Logged in as:</span>
-            <select 
-              value={currentAccount.code}
-              onChange={(e) => setCurrentAccount(OFFICES.find(o => o.code === e.target.value))}
-              className="bg-transparent text-white text-xs font-semibold focus:outline-none cursor-pointer"
+          <div className="flex items-center gap-3">
+            {/* Office Identity Badge */}
+            <div className="flex items-center gap-2 bg-blue-800/80 px-3 py-1.5 rounded-lg border border-blue-700">
+              <Building2 className="w-4 h-4 text-yellow-400" />
+              <span className="text-xs text-blue-200">Logged in as:</span>
+              <select 
+                value={currentAccount.code}
+                onChange={(e) => setCurrentAccount(OFFICES.find(o => o.code === e.target.value))}
+                className="bg-transparent text-white text-xs font-semibold focus:outline-none cursor-pointer"
+              >
+                {OFFICES.map(off => (
+                  <option key={off.code} value={off.code} className="text-slate-900">{off.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Logout Button */}
+            <button 
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 bg-red-600/80 hover:bg-red-600 text-white text-xs font-semibold px-3 py-2 rounded-lg transition border border-red-500 shadow-sm"
+              title="Sign Out"
             >
-              {OFFICES.map(off => (
-                <option key={off.code} value={off.code} className="text-slate-900">{off.name}</option>
-              ))}
-            </select>
+              <LogOut className="w-3.5 h-3.5" /> Sign Out
+            </button>
           </div>
         </div>
       </header>
